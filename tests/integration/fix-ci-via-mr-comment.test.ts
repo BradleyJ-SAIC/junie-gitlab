@@ -1,66 +1,36 @@
-import {describe, test, before, after} from "node:test";
-import {JUNIE_STARTED_MESSAGE, JUNIE_FINISHED_PREFIX} from "../../src/constants/gitlab.js";
+import { describe, test, before, after } from "node:test";
+import { JUNIE_STARTED_MESSAGE, JUNIE_FINISHED_PREFIX } from "../../src/constants/gitlab.js";
 import {
-    initApi,
-    createBranch, deleteBranch, createRepositoryFile,
-    createMergeRequest, closeMergeRequest,
+    createRepositoryFile,
+    createMergeRequest,
     addMergeRequestNote,
-    getProjectById,
-    waitForFailedPipeline, waitForSuccessfulPipeline,
-    waitForMRComment, waitForMRFileNotContains,
+    waitForFailedPipeline,
+    waitForMRComment,
+    waitForMRFileNotContains,
     updateProjectCiConfigPath,
+    createBranch,
 } from "../../src/api/gitlab-api.js";
-import {gitLabConfig} from "../config/config.js";
-
-const projectId = gitLabConfig.projectId as unknown as number;
-initApi(gitLabConfig.gitlabHost, gitLabConfig.gitlabToken);
+import { LocalGitLabFixture } from "../fixtures/local-gitlab-fixture.js";
 
 describe("Fix Failing CI via MR comment", () => {
-    let defaultBranch: string = 'main';
-    let projectPath: string = '';
+    const fixture = new LocalGitLabFixture();
+    let projectId: number;
+    let defaultBranch: string;
+    let projectPath: string;
+
     let branchName: string | undefined;
     let mrIid: number | undefined;
-    let ciConfigPathSwitched = false;
     let testPassed = false;
 
     before(async () => {
-        console.log(`Using existing project ID: ${projectId}`);
-        const projectInfo = await getProjectById(projectId) as any;
-        defaultBranch = projectInfo.default_branch || 'main';
-        projectPath = projectInfo.path_with_namespace;
-        console.log(`Default branch: ${defaultBranch}; project path: ${projectPath}`);
+        const handle = await fixture.create("fix-ci", "--mr-mode append");
+        projectId = handle.projectId;
+        defaultBranch = handle.defaultBranch;
+        projectPath = handle.projectPath;
     });
 
     after(async () => {
-        if (ciConfigPathSwitched) {
-            try {
-                await updateProjectCiConfigPath(projectId, "");
-                console.log("Reset ci_config_path to default");
-            } catch (e) {
-                console.error(`Failed to reset ci_config_path: ${e}`);
-            }
-        }
-
-        if (testPassed) {
-            if (mrIid) {
-                try {
-                    await closeMergeRequest(projectId, mrIid);
-                    console.log(`Closed MR #${mrIid}`);
-                } catch (e) {
-                    console.error(`Failed to close MR #${mrIid}: ${e}`);
-                }
-            }
-            if (branchName) {
-                try {
-                    await deleteBranch(projectId, branchName);
-                    console.log(`Deleted branch: ${branchName}`);
-                } catch (e) {
-                    console.error(`Failed to delete branch ${branchName}: ${e}`);
-                }
-            }
-        } else if (mrIid) {
-            console.log(`⚠️ Keeping failed test MR: #${mrIid} in project ${projectId} for investigation`);
-        }
+        await fixture.destroy({ testPassed });
     });
 
     test("Junie fixes failing CI on #junie fix-ci comment", {timeout: 1200000}, async () => {
@@ -99,7 +69,6 @@ test:
 
         const fullCiConfigPath = `${failingCiPath}@${projectPath}:${branchName}`;
         await updateProjectCiConfigPath(projectId, fullCiConfigPath);
-        ciConfigPathSwitched = true;
         console.log(`Switched ci_config_path to: ${fullCiConfigPath}`);
 
         const mrTitle = `Trigger failing CI ${timestamp}`;
@@ -126,7 +95,6 @@ test:
         console.log("Verifying the broken code is no longer in the MR diff...");
         await waitForMRFileNotContains(projectId, mrIid!, codeFile, "console.log('fail';");
         console.log("Junie fix detected in MR diff.");
-
         testPassed = true;
     });
 });
