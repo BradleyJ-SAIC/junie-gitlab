@@ -1,37 +1,49 @@
-import {describe, test} from "node:test";
+import {describe, test, before, after} from "node:test";
 import assert from "node:assert/strict";
 import {JUNIE_STARTED_MESSAGE, JUNIE_FINISHED_PREFIX} from "../../src/constants/gitlab.js";
 import {
     initApi,
-    createBranch, deleteBranch, createRepositoryFile,
-    createMergeRequest, closeMergeRequest,
+    createBranch, createRepositoryFile,
+    createMergeRequest,
     addMergeRequestNote,
     waitForMRComment,
     waitForMRInlineNotes, getMRInlineNotes,
-    getProjectById,
 } from "../../src/api/gitlab-api.js";
 import {gitLabConfig} from "../config/config.js";
-
-const projectId = gitLabConfig.projectId as unknown as number;
-initApi(gitLabConfig.gitlabHost, gitLabConfig.gitlabToken);
+import {LocalGitLabFixture} from "../fixtures/local-gitlab-fixture.js";
 
 describe("Code Review", () => {
-    test("on-demand via '#junie code-review' comment", {timeout: 900_000},
-        () => runCodeReviewTest('ondemand', '#junie code-review'));
+    const fixture = new LocalGitLabFixture();
+    let projectId: number;
+    let defaultBranch: string;
+    let testPassed = false;
 
-    test("automatic on MR open", {timeout: 900_000},
-        () => runCodeReviewTest('auto'));
-});
+    before(async () => {
+        initApi(gitLabConfig.gitlabHost, gitLabConfig.gitlabToken);
+        const handle = await fixture.create("test-code-review", "--mr-mode append");
+        projectId = handle.projectId;
+        defaultBranch = handle.defaultBranch;
+        console.log(`Created isolated project #${projectId} (${handle.webUrl}), default branch: ${defaultBranch}`);
+    });
 
-async function runCodeReviewTest(suffix: string, triggerComment?: string) {
-    const timestamp = Date.now();
-    const branchName = `feature/${suffix}-${timestamp}`;
-    const projectInfo = await getProjectById(projectId) as any;
-    const defaultBranch = projectInfo.default_branch || 'main';
+    after(async () => {
+        await fixture.destroy({testPassed});
+    });
 
-    let mrIid: number | undefined;
-    let passed = false;
-    try {
+    test("on-demand via '#junie code-review' comment", {timeout: 900_000}, async () => {
+        await runCodeReviewTest('ondemand', '#junie code-review');
+        testPassed = true;
+    });
+
+    test("automatic on MR open", {timeout: 900_000}, async () => {
+        await runCodeReviewTest('auto');
+        testPassed = true;
+    });
+
+    async function runCodeReviewTest(suffix: string, triggerComment?: string) {
+        const timestamp = Date.now();
+        const branchName = `feature/${suffix}-${timestamp}`;
+
         console.log(`[${suffix}] Creating branch ${branchName} from ${defaultBranch}...`);
         await createBranch(projectId, branchName, defaultBranch);
         await createRepositoryFile(projectId, `src/app_${suffix}.py`, branchName,
@@ -44,7 +56,7 @@ async function runCodeReviewTest(suffix: string, triggerComment?: string) {
         console.log(`[${suffix}] Opening MR...`);
         const mr = await createMergeRequest(projectId, branchName, defaultBranch,
             `Code review ${suffix} ${timestamp}`, '');
-        mrIid = (mr as any).iid;
+        const mrIid = (mr as any).iid;
         console.log(`[${suffix}] MR #${mrIid}: ${(mr as any).web_url}`);
 
         if (triggerComment) {
@@ -69,13 +81,5 @@ async function runCodeReviewTest(suffix: string, triggerComment?: string) {
         console.log(`[${suffix}] Got ${notes.length} inline notes. Waiting for finish message...`);
         await waitForMRComment(projectId, mrIid!, JUNIE_FINISHED_PREFIX);
         console.log(`[${suffix}] Junie finished code review.`);
-        passed = true;
-    } finally {
-        if (passed && mrIid) {
-            await closeMergeRequest(projectId, mrIid).catch(e => console.error(`Close MR: ${e}`));
-            await deleteBranch(projectId, branchName).catch(e => console.error(`Delete branch: ${e}`));
-        } else if (mrIid) {
-            console.log(`⚠️ Keeping failed test MR #${mrIid} for investigation`);
-        }
     }
-}
+});
