@@ -7,7 +7,8 @@ import {
     waitForFailedPipeline,
     waitForMRComment,
     waitForMRFileNotContains,
-    updateProjectCiConfigPath,
+    getRepositoryFile,
+    updateRepositoryFile,
     createBranch,
 } from "../../src/api/gitlab-api.js";
 import { LocalGitLabFixture } from "../fixtures/local-gitlab-fixture.js";
@@ -16,7 +17,6 @@ describe("Fix Failing CI via MR comment", () => {
     const fixture = new LocalGitLabFixture();
     let projectId: number;
     let defaultBranch: string;
-    let projectPath: string;
 
     let branchName: string | undefined;
     let mrIid: number | undefined;
@@ -26,7 +26,6 @@ describe("Fix Failing CI via MR comment", () => {
         const handle = await fixture.create("fix-ci", "--mr-mode append");
         projectId = handle.projectId;
         defaultBranch = handle.defaultBranch;
-        projectPath = handle.projectPath;
     });
 
     after(async () => {
@@ -37,19 +36,8 @@ describe("Fix Failing CI via MR comment", () => {
         const timestamp = Date.now();
         branchName = `feature/failing-ci-${timestamp}`;
         const codeFile = "failing-code.js";
-        const failingCiPath = "failing-ci.yml";
-        const failingCiContent = `spec:
-  inputs:
-    project_token:
-      type: string
-      default: ""
----
-
-include:
-  - local: .gitlab-ci.yml
-    inputs:
-      project_token: $[[ inputs.project_token ]]
-
+        const brokenCode = "console.log('fail';\n";
+        const failingTestJobStanza = `
 test:
   stage: cleanup
   image: node:18
@@ -58,18 +46,22 @@ test:
       when: on_success
     - when: never
   script:
-    - node failing-code.js
+    - node ${codeFile}
 `;
-        const brokenCode = "console.log('fail';\n";
 
         console.log(`Creating branch: ${branchName}`);
         await createBranch(projectId, branchName, defaultBranch);
-        await createRepositoryFile(projectId, failingCiPath, branchName, failingCiContent, "Add failing CI config");
         await createRepositoryFile(projectId, codeFile, branchName, brokenCode, "Add broken code");
 
-        const fullCiConfigPath = `${failingCiPath}@${projectPath}:${branchName}`;
-        await updateProjectCiConfigPath(projectId, fullCiConfigPath);
-        console.log(`Switched ci_config_path to: ${fullCiConfigPath}`);
+        const currentCi = await getRepositoryFile(projectId, ".gitlab-ci.yml", branchName);
+        await updateRepositoryFile(
+            projectId,
+            ".gitlab-ci.yml",
+            branchName,
+            currentCi + failingTestJobStanza,
+            "Add failing test job to CI"
+        );
+        console.log("Appended failing test job to .gitlab-ci.yml on the feature branch.");
 
         const mrTitle = `Trigger failing CI ${timestamp}`;
         const mr = await createMergeRequest(projectId, branchName, defaultBranch, mrTitle, '') as any;

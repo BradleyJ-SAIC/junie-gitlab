@@ -378,6 +378,23 @@ export async function createRepositoryFile(projectId: number, filePath: string, 
     return withRetry(() => api.RepositoryFiles.create(projectId, filePath, branch, content, commitMessage), `create file ${filePath}`);
 }
 
+export async function getRepositoryFile(projectId: number, filePath: string, ref: string): Promise<string> {
+    logger.debug(`Fetching file ${filePath} at ${ref} in project ${projectId}`);
+    const file = (await withRetry(
+        () => api.RepositoryFiles.show(projectId, filePath, ref),
+        `get file ${filePath} at ${ref}`
+    )) as { content: string; encoding?: string };
+    return Buffer.from(file.content, (file.encoding ?? "base64") as BufferEncoding).toString("utf8");
+}
+
+export async function updateRepositoryFile(projectId: number, filePath: string, branch: string, content: string, commitMessage: string) {
+    logger.debug(`Updating file ${filePath} on branch ${branch} in project ${projectId}`);
+    return withRetry(
+        () => api.RepositoryFiles.edit(projectId, filePath, branch, content, commitMessage),
+        `update file ${filePath}`
+    );
+}
+
 async function waitFor<T>(
     check: () => Promise<T | undefined>,
     timeoutMessage: string,
