@@ -42,11 +42,13 @@ describe("Trigger Junie minor-fix in MR comment", () => {
         const renamedFunctionName = "handle_user_data";
         const content = `def ${originalFunctionName}(items):\n    return [i.strip() for i in items]\n`;
 
-        console.log(`Creating branch: ${branchName}`);
+        console.log(`Creating branch: ${branchName} (from ${defaultBranch})`);
         await createBranch(projectId, branchName, defaultBranch);
+        console.log(`Adding ${filename} with function ${originalFunctionName}() on ${branchName}`);
         await createRepositoryFile(projectId, filename, branchName, content, "Add string utils");
 
         const mrTitle = `Add string utilities ${timestamp}`;
+        console.log(`Creating MR "${mrTitle}" from ${branchName} into ${defaultBranch}`);
         const mr = await createMergeRequest(projectId, branchName, defaultBranch, mrTitle, '');
         mrIid = (mr as any).iid;
         console.log(`MR created: #${mrIid} ${(mr as any).web_url}`);
@@ -55,16 +57,24 @@ describe("Trigger Junie minor-fix in MR comment", () => {
         console.log(`Commenting on MR #${mrIid}: "${commentBody}"`);
         await addMergeRequestNote(projectId, mrIid!, commentBody);
 
+        console.log("Waiting for Junie's started comment on MR...");
         await waitForMRComment(projectId, mrIid!, JUNIE_STARTED_MESSAGE);
         console.log("Junie started processing.");
 
+        console.log("Waiting for Junie's finished comment on MR...");
         await waitForMRComment(projectId, mrIid!, JUNIE_FINISHED_PREFIX);
-        await waitForMRFileContent(projectId, mrIid!, filename, renamedFunctionName);
+        console.log("Junie posted the finish message.");
 
+        console.log(`Waiting for renamed function ${renamedFunctionName} to appear in ${filename}...`);
+        await waitForMRFileContent(projectId, mrIid!, filename, renamedFunctionName);
+        console.log(`Renamed function detected in ${filename}.`);
+
+        console.log("Verifying renamed function is present in the MR diff...");
         const result = await checkMergeRequestFiles(projectId, mrIid!, {
             [filename]: renamedFunctionName,
         });
         expect(result, "MR files check failed - renamed function not found in diff").toBe(true);
+        console.log(`MR diff check passed: ${filename} contains ${renamedFunctionName}.`);
 
         console.log("Junie finished processing the minor-fix.");
         testPassed = true;
