@@ -21,7 +21,7 @@ import {
 } from "../constants/gitlab.js";
 import {sanitizeContent} from "./sanitizer.js";
 import {DiscussionSchema} from '@gitbeaker/core';
-import {getLastCompletedPipelineForMR} from "../api/gitlab-api.js";
+import {getLastFailedPipelineForMR} from "../api/gitlab-api.js";
 import {processMarkdownAttachments} from "./attachment-downloader.js";
 
 /**
@@ -90,7 +90,7 @@ export class GitLabPromptFormatter {
             }
 
             if (isMRCommandEvent(FIX_CI_TRIGGER_PHRASE_REGEXP, context, customPrompt)) {
-                const pipeline = await getLastCompletedPipelineForMR(context.projectId, context.mergeRequestId);
+                const pipeline = await getLastFailedPipelineForMR(context.projectId, context.mergeRequestId);
 
                 customPrompt = createFixCIFailuresPrompt(
                     context.projectId,
