@@ -39,7 +39,7 @@ describe("Fix Failing CI via MR comment", () => {
         const brokenCode = "console.log('fail';\n";
         const failingTestJobStanza = `
 test:
-  stage: cleanup
+  stage: test
   image: node:18
   rules:
     - if: $CI_PIPELINE_SOURCE == "push" || $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -54,11 +54,15 @@ test:
         await createRepositoryFile(projectId, codeFile, branchName, brokenCode, "Add broken code");
 
         const currentCi = await getRepositoryFile(projectId, ".gitlab-ci.yml", branchName);
+        const ciWithTestStage = currentCi.replace(
+            /(stages:\s*\n(?:\s*-\s*\w+\s*\n)*?)(\s*-\s*cleanup\s*\n)/m,
+            "$1  - test\n$2"
+        );
         await updateRepositoryFile(
             projectId,
             ".gitlab-ci.yml",
             branchName,
-            currentCi + failingTestJobStanza,
+            ciWithTestStage + failingTestJobStanza,
             "Add failing test job to CI"
         );
         console.log("Appended failing test job to .gitlab-ci.yml on the feature branch.");
