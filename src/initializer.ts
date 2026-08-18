@@ -66,6 +66,7 @@ export async function initialize(projectIds: number[], options: InitOptions = {}
                 PROJECT_ACCESS_TOKEN_NAME,
                 undefined,
                 ["write_repository", "api"],
+                AccessLevel.DEVELOPER,
                 patExpiration.toISOString(),
             );
             try {
