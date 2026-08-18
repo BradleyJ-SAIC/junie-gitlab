@@ -12,8 +12,10 @@ import {withRetry} from "../utils/retry.js";
 import * as fs from 'fs';
 import {Blob} from 'buffer';
 
+let apiHost = webhookEnv.apiV4Url.value ? (new URL(webhookEnv.apiV4Url.value)).origin : 'https://gitlab.com';
+
 export let api = new Gitlab({
-    host: webhookEnv.apiV4Url.value ? (new URL(webhookEnv.apiV4Url.value)).origin : 'https://gitlab.com',
+    host: apiHost,
     token: webhookEnv.gitlabToken.value ?? '',
 });
 
@@ -22,6 +24,7 @@ if (webhookEnv.apiV4Url.value) {
 }
 
 export function initApi(host: string, token: string) {
+    apiHost = host;
     api = new Gitlab({ host, token });
 }
 
@@ -559,13 +562,17 @@ export function findMergeRequestIidFromComment(comment: { body: string }, mrLink
     return parseInt(mrLink.split('/').at(-1) ?? "") || 0;
 }
 
-export async function setJunieAvatar(userId: number): Promise<UserSchema> {
-    logger.debug(`Setting avatar for user ${userId} from ./assets/junie-logo.png`);
+export async function setJunieAvatar(projectAccessToken: string): Promise<void> {
     const avatarPath = '/assets/junie-logo.png';
+    logger.debug(`Setting avatar for the user from ${avatarPath}`);
     const avatarData = fs.readFileSync(avatarPath);
-    const data = {
-        content: new Blob([avatarData]),
-        filename: 'junie-logo.png',
-    };
-    return withRetry(() => api.Users.edit(userId, { avatar: data }), `set avatar for user ${userId}`);
+    const form = new FormData();
+    form.append('avatar', new Blob([avatarData]) as any, 'junie-logo.png');
+    // There is no resource method for PUT /user/avatar, so the request is sent
+    // through the gitbeaker requester of a client authenticated with PAT.
+    const botApi = new Gitlab({host: apiHost, token: projectAccessToken});
+    await withRetry(
+        () => botApi.Users.requester.put('user/avatar', {body: form}),
+        'set avatar for the bot user'
+    );
 }
