@@ -6,7 +6,7 @@ import {
     ProjectHookSchema, ProjectSchema, UserSchema
 } from '@gitbeaker/rest';
 import {webhookEnv} from "../webhook-env.js";
-import {AccessTokenExposedSchema, IssueSchema} from "@gitbeaker/core";
+import {AccessTokenExposedSchema, IssueSchema, MemberSchema} from "@gitbeaker/core";
 import {logger} from "../utils/logging.js";
 import {withRetry} from "../utils/retry.js";
 import * as fs from 'fs';
@@ -149,9 +149,12 @@ export async function getAllGroupAccessTokens(groupId: number): Promise<AccessTo
     }
 }
 
-export async function getCurrentUser(): Promise<UserSchema> {
-    logger.debug('Fetching the current user');
-    return withRetry(() => api.Users.showCurrentUser(), 'current user');
+export async function getAllProjectMembers(projectId: number): Promise<MemberSchema[]> {
+    logger.debug(`Fetching all members for project ${projectId}`);
+    return getAllPaginated(
+        (page, perPage) => api.ProjectMembers.all(projectId, {includeInherited: true, page, perPage}),
+        'project members'
+    );
 }
 
 export async function getUserById(userId: number): Promise<UserSchema> {
