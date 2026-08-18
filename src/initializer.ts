@@ -69,7 +69,7 @@ export async function initialize(projectIds: number[], options: InitOptions = {}
                 patExpiration.toISOString(),
             );
             try {
-                await setJunieAvatar(pat.user_id);
+                await setJunieAvatar(pat.token);
             } catch (e) {
                 logger.warn("Failed to set bot's avatar");
                 logger.warn(e);
