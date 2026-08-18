@@ -57,6 +57,10 @@ export const webhookEnv = {
     openrouterApiKey: new StringVariable("OPENROUTER_API_KEY"),
     googleApiKey: new StringVariable("GOOGLE_API_KEY"),
 
+    // LiteLLM proxy (alternative to junieApiKey)
+    litellmUrl: new StringVariable("JUNIE_LITELLM_URL"),
+    litellmApiKey: new StringVariable("JUNIE_LITELLM_API_KEY"),
+
     // issues-related env vars:
     issueId: new NumericVariable("ISSUE_ID", "{{issue.iid}}"),
     commentText: new StringVariable("COMMENT_TEXT", "{{object_attributes.note}}"),

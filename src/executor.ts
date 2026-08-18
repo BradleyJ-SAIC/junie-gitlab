@@ -75,6 +75,8 @@ export async function execute(context: GitLabExecutionContext) {
                     webhookEnv.grokApiKey,
                     webhookEnv.openrouterApiKey,
                     webhookEnv.googleApiKey,
+                    webhookEnv.litellmUrl,
+                    webhookEnv.litellmApiKey,
                 ]) {
                     if (byokVar.value) {
                         variables.push({key: byokVar.key, value: byokVar.value});
@@ -166,6 +168,8 @@ export async function execute(context: GitLabExecutionContext) {
                 grokApiKey: context.grokApiKey,
                 openrouterApiKey: context.openrouterApiKey,
                 googleApiKey: context.googleApiKey,
+                litellmUrl: context.litellmUrl,
+                litellmApiKey: context.litellmApiKey,
             },
             context.junieModel,
             context.junieGuidelinesFilename,
@@ -283,6 +287,8 @@ function runJunie(
         grokApiKey: string | null;
         openrouterApiKey: string | null;
         googleApiKey: string | null;
+        litellmUrl: string | null;
+        litellmApiKey: string | null;
     },
     model: string | null,
     guidelinesFilename: string | null,
@@ -306,10 +312,12 @@ function runJunie(
         const grokArg = byokKeys.grokApiKey ? ` --grok-api-key="${byokKeys.grokApiKey}"` : "";
         const openrouterArg = byokKeys.openrouterApiKey ? ` --openrouter-api-key="${byokKeys.openrouterApiKey}"` : "";
         const googleArg = byokKeys.googleApiKey ? ` --google-api-key="${byokKeys.googleApiKey}"` : "";
+        const litellmUrlArg = byokKeys.litellmUrl ? ` --litellm-url="${byokKeys.litellmUrl}"` : "";
+        const litellmApiKeyArg = byokKeys.litellmApiKey ? ` --litellm-api-key="${byokKeys.litellmApiKey}"` : "";
 
         // Read from file via stdin to avoid ARG_MAX limit
         runCommand(
-            `junie${authArg} --cache-dir="${cacheDir}" --output-format="json" --input-format="json" --json-output-file="${junieOutputFile}"${modelArg}${guidelinesArg}${openaiArg}${anthropicArg}${grokArg}${openrouterArg}${googleArg} < "${junieInputFile}"`,
+            `junie${authArg} --cache-dir="${cacheDir}" --output-format="json" --input-format="json" --json-output-file="${junieOutputFile}"${modelArg}${guidelinesArg}${openaiArg}${anthropicArg}${grokArg}${openrouterArg}${googleArg}${litellmUrlArg}${litellmApiKeyArg} < "${junieInputFile}"`,
         );
 
         // Read output from file

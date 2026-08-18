@@ -265,6 +265,8 @@ upsert_workspace_var ANTHROPIC_API_KEY  "${ANTHROPIC_API_KEY:-}"
 upsert_workspace_var GROK_API_KEY       "${GROK_API_KEY:-}"
 upsert_workspace_var OPENROUTER_API_KEY "${OPENROUTER_API_KEY:-}"
 upsert_workspace_var GOOGLE_API_KEY     "${GOOGLE_API_KEY:-}"
+upsert_workspace_var JUNIE_LITELLM_URL     "${JUNIE_LITELLM_URL:-}"
+upsert_workspace_var JUNIE_LITELLM_API_KEY "${JUNIE_LITELLM_API_KEY:-}"
 
 # GITLAB_TOKEN_FOR_JUNIE — README recommends restricting this to the `init`
 # environment, but in our local flow:

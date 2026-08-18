@@ -37,6 +37,10 @@ interface BaseGitLabContext {
     openrouterApiKey: string | null;
     googleApiKey: string | null;
 
+    // Custom OpenAI-compatible provider (LiteLLM proxy, alternative to junieApiKey)
+    litellmUrl: string | null;
+    litellmApiKey: string | null;
+
     // Junie configuration
     junieModel: string | null;
     junieGuidelinesFilename: string | null;
@@ -123,12 +127,15 @@ export async function extractGitLabContext(cliOptions: CLIOptions): Promise<GitL
     const grokApiKey = webhookEnv.grokApiKey.value ?? null;
     const openrouterApiKey = webhookEnv.openrouterApiKey.value ?? null;
     const googleApiKey = webhookEnv.googleApiKey.value ?? null;
+    const litellmUrl = webhookEnv.litellmUrl.value ?? null;
+    const litellmApiKey = webhookEnv.litellmApiKey.value ?? null;
 
     const hasByokKey = openaiApiKey || anthropicApiKey || grokApiKey || openrouterApiKey || googleApiKey;
-    if (!junieApiKey && !hasByokKey) {
+    if (!junieApiKey && !hasByokKey && !litellmUrl) {
         throw new Error(
-            "Missing required secret: provide either JUNIE_API_KEY or at least one BYOK key " +
-            "(OPENAI_API_KEY, ANTHROPIC_API_KEY, GROK_API_KEY, OPENROUTER_API_KEY, or GOOGLE_API_KEY)"
+            "Missing required secret: provide either JUNIE_API_KEY, at least one BYOK key " +
+            "(OPENAI_API_KEY, ANTHROPIC_API_KEY, GROK_API_KEY, OPENROUTER_API_KEY, or GOOGLE_API_KEY), " +
+            "or a LiteLLM proxy URL (JUNIE_LITELLM_URL)"
         );
     }
 
@@ -150,6 +157,8 @@ export async function extractGitLabContext(cliOptions: CLIOptions): Promise<GitL
         grokApiKey,
         openrouterApiKey,
         googleApiKey,
+        litellmUrl,
+        litellmApiKey,
 
         // Junie configuration
         junieModel: webhookEnv.junieModel.value,
