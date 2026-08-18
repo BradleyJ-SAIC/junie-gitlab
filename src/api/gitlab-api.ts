@@ -149,6 +149,11 @@ export async function getAllGroupAccessTokens(groupId: number): Promise<AccessTo
     }
 }
 
+export async function getCurrentUser(): Promise<UserSchema> {
+    logger.debug('Fetching the current user');
+    return withRetry(() => api.Users.showCurrentUser(), 'current user');
+}
+
 export async function getUserById(userId: number): Promise<UserSchema> {
     logger.debug(`Fetching user ${userId}`);
     return withRetry(() => api.Users.show(userId), `user ${userId}`);
