@@ -1,7 +1,7 @@
 import {runCommand} from "./utils/commands.js";
 import {
     createMergeRequest,
-    api, getProjectCiConfigPath, getProjectById, updateProjectCiConfigPath, runPipeline, getAllProjectAccessTokens
+    api, getProjectCiConfigPath, getProjectById, updateProjectCiConfigPath, runPipeline, getCurrentUser
 } from "./api/gitlab-api.js";
 import {execSync} from "child_process";
 import * as fs from "fs";
@@ -35,7 +35,6 @@ import {writeToFile} from "./utils/io.js";
 import {neutralizeJunieTriggers} from "./utils/sanitizer.js";
 import {Variable, webhookEnv} from "./webhook-env.js";
 import {PipelineVariableSchema} from "@gitbeaker/rest";
-import {PROJECT_ACCESS_TOKEN_NAME} from "./constants/gitlab.js";
 
 const cacheDir = "/junieCache";
 const literalMentions = ['@junie', '#junie'];
@@ -46,6 +45,8 @@ export async function execute(context: GitLabExecutionContext) {
     if (taskExtractionResult.success) {
 
         /**
+         * TODO THIS IS CURRENTLY BROKEN AS IT REQUIRES MAINTAINER ACCESS
+         * 
          * Handle pipeline redirection logic.
          * If usePipelineRedirect is set to true – it will trigger a pipeline in a user-project instead of continuing
          * its execution in the current project.
@@ -228,7 +229,7 @@ async function extractTaskFromEnv(context: GitLabExecutionContext): Promise<Task
 
     // Issue comment event
     if (isIssueCommentEvent(context)) {
-        const hasMention = await checkTextForJunieMention(projectId, context.commentText);
+        const hasMention = await checkTextForJunieMention(context.commentText);
         if (!hasMention) {
             return new FailedTaskExtractionResult("Comment doesn't contain mention to Junie");
         }
@@ -246,7 +247,7 @@ async function extractTaskFromEnv(context: GitLabExecutionContext): Promise<Task
 
     // MR comment event
     if (isMergeRequestCommentEvent(context)) {
-        const hasMention = await checkTextForJunieMention(projectId, context.commentText);
+        const hasMention = await checkTextForJunieMention(context.commentText);
         if (!hasMention) {
             return new FailedTaskExtractionResult("Comment doesn't contain mention to Junie");
         }
@@ -390,18 +391,24 @@ async function pushChangesToTheSameBranch(
 /**
  * Checks if the given text contains a mention to Junie bot. There are basically two cases when it does:
  * 1. If there is a literal mention (e.g. "@junie" or "#junie" in the text)
- * 2. If a bot created during the init phase is mentioned (so there is a tagged user with a name == PROJECT_ACCESS_TOKEN_NAME)
- * @param projectId
+ * 2. If the bot created during the init phase is tagged by its own @username
  * @param text
  */
 async function checkTextForJunieMention(
-    projectId: number,
     text: string,
 ): Promise<boolean> {
     if (literalMentions.some(mention => text.toLowerCase().includes(mention.toLowerCase()))) {
         logger.info('Detected literal junie mention');
         return true;
     }
-    const tokens = await getAllProjectAccessTokens(projectId);
-    return tokens.some(token => token.active && !token.revoked && token.name === PROJECT_ACCESS_TOKEN_NAME);
+    try {
+        // The bot owns the token this job runs with, so its username comes from GET /user.
+        // Listing project access tokens would require a Maintainer-level token.
+        const botUsername = (await getCurrentUser()).username;
+        return text.toLowerCase().includes(`@${botUsername.toLowerCase()}`);
+    } catch (e) {
+        logger.warn('Failed to resolve the bot username, treating the text as having no mention');
+        logger.warn(e);
+        return false;
+    }
 }
